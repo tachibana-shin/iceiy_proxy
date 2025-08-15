@@ -20,6 +20,7 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
   const url = new URL(path, `${protocol}://${domain}`)
   url.search = new URL(c.req.url).search
+  url.searchParams.set("i", "1")
 
   console.log(`Request to URL: ${url}`)
   console.log(`Request method: ${c.req.method}`)
@@ -35,7 +36,9 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     ? null
     : await c.req.arrayBuffer()
 
-  const cookie = cookieStore.get(`${protocol}://${domain}${c.req.raw.headers.get("cookie")}`)
+  const cookie = cookieStore.get(
+    `${protocol}://${domain}${c.req.raw.headers.get("cookie")}`
+  )
   const client = Deno.createHttpClient({
     allowHost: true
   })
@@ -45,13 +48,12 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     body,
     redirect: "manual",
     headers: {
-      ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
-        ? {
-            cookie: [c.req.header("cookie") ?? "", cookie]
-              .filter(Boolean)
-              .join("; ")
-          }
-        : {}),
+      cookie: [
+        c.req.header("cookie") ?? "",
+        cookie && cookie.created + 21600 * 1e3 > Date.now() ? cookie.value : ""
+      ]
+        .filter(Boolean)
+        .join("; "),
       ...cleanHeaders(
         Object.fromEntries(c.req.raw.headers.entries()),
         protocol,
@@ -72,14 +74,19 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     )
 
   let buffer = await res.arrayBuffer()
-  let lastCookie: string = "", i = 0
+  let lastCookie: string = "",
+    i = 0
   while (i++ < 6) {
     const text = new TextDecoder().decode(buffer)
 
-    if (text.includes('<script type="text/javascript" src="/aes.js"')) {
+    if (text.includes("aes.js")) {
+      console.log("detecttttt")
       const cookie = `__test=${decrypt(text)}`
-
-      cookieStore.set(`${protocol}://${domain}${c.req.raw.headers.get("cookie")}`, { value: cookie, created: Date.now() })
+      console.log(cookie)
+      cookieStore.set(
+        `${protocol}://${domain}${c.req.raw.headers.get("cookie")}`,
+        { value: cookie, created: Date.now() }
+      )
 
       const client = Deno.createHttpClient({
         allowHost: true
@@ -90,13 +97,9 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
         body,
         redirect: "manual",
         headers: {
-          ...(cookieStore.has(domain)
-            ? {
-                cookie: [c.req.header("cookie") ?? "", lastCookie, cookie]
-                  .filter(Boolean)
-                  .join("; ")
-              }
-            : {}),
+          cookie: [c.req.header("cookie") ?? "", lastCookie, cookie]
+            .filter(Boolean)
+            .join("; "),
           ...cleanHeaders(
             Object.fromEntries(c.req.raw.headers.entries()),
             protocol,
@@ -107,21 +110,19 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
       lastCookie = res.headers.getSetCookie().join("; ")
 
-      if (!res.ok || res.status === 302)
-        return c.body(
-          await res.arrayBuffer(),
-          res.status as ContentfulStatusCode,
-          {
-            ...cleanHeadersResponse(
-              Object.fromEntries(res.headers.entries()),
-              protocol,
-              domain
-            ),
-            "Set-Cookie": res.headers.getSetCookie().join("; ")
-          }
-        )
-
       buffer = await res.arrayBuffer()
+      if (
+        !new TextDecoder().decode(buffer).includes("aes.js") &&
+        (!res.ok || res.status === 302)
+      )
+        return c.body(buffer, res.status as ContentfulStatusCode, {
+          ...cleanHeadersResponse(
+            Object.fromEntries(res.headers.entries()),
+            protocol,
+            domain
+          ),
+          "Set-Cookie": res.headers.getSetCookie().join("; ")
+        })
     } else {
       break
     }
