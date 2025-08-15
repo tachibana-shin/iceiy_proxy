@@ -54,7 +54,7 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
     cookieStore.set(domain, { value: cookie, created: Date.now() })
 
-    console.log({ cookie })
+    console.log({ cookie, res_cookie: res.headers.getSetCookie() })
 
     res = await fetch(url, {
       method: c.req.method,
@@ -75,6 +75,7 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
       }
     })
 
+    console.log({ res_cookie: res.headers.getSetCookie() })
     if (!res.ok)
       return c.body(
         await res.arrayBuffer(),
