@@ -11,7 +11,7 @@ app.use(etag(), logger())
 
 const cookieStore = new Map<string, { value: string; created: number }>()
 
-app.get("/proxy/:protocol/:domain/*", async (c) => {
+app.all("/proxy/:protocol/:domain/*", async (c) => {
   const domain = c.req.param("protocol") + "://" + c.req.param("domain")
   const path = "/" + c.req.path.split("/").slice(4).join("/")
 
@@ -22,6 +22,12 @@ app.get("/proxy/:protocol/:domain/*", async (c) => {
 
   const cookie = cookieStore.get(domain)
   let res = await fetch(url, {
+    method: c.req.method,
+    body: ["GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"].includes(
+      c.req.method
+    )
+      ? null
+      : await c.req.formData(),
     headers: {
       ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
         ? {
@@ -47,6 +53,12 @@ app.get("/proxy/:protocol/:domain/*", async (c) => {
     cookieStore.set(domain, { value: cookie, created: Date.now() })
 
     res = await fetch(url, {
+      method: c.req.method,
+      body: ["GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"].includes(
+        c.req.method
+      )
+        ? null
+        : await c.req.formData(),
       headers: {
         ...(cookieStore.has(domain)
           ? {
