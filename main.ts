@@ -73,7 +73,6 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
       }
     })
 
-    console.log({ res_cookie: Object.fromEntries(res.headers.entries()) })
     if (!res.ok)
       return c.body(
         await res.arrayBuffer(),
@@ -87,7 +86,6 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     buffer = await res.arrayBuffer()
   }
 
-  console.log({ res_cookie: Object.fromEntries(res.headers.entries()) })
   return c.body(buffer, res.status as ContentfulStatusCode, {
     ...Object.fromEntries(res.headers.entries()),
     "Set-Cookie": res.headers.getSetCookie().join("; ")
