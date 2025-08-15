@@ -35,7 +35,5 @@ export function decrypt(html: string) {
   b = b.match(/toNumbers\("([a-z0-9]+)"\)/)![1]
   c = c.match(/toNumbers\("([a-z0-9]+)"\)/)![1]
 
-  console.log({ a, b, c })
-
   return toHex(slowAES.decrypt(toNumbers(c), 2, toNumbers(a), toNumbers(b)))
 }

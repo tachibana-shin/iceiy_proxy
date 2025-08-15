@@ -3,10 +3,13 @@ import { etag } from "hono/etag"
 import { logger } from "hono/logger"
 import { ContentfulStatusCode } from "hono/utils/http-status"
 import { decrypt } from "./logic/decrypt.ts"
+import { cleanHeaders } from "./logic/clean-headers.ts"
 
 const app = new Hono()
 
 app.use(etag(), logger())
+
+const cookieStore = new Map<string, { value: string; created: number }>()
 
 app.get("/proxy/:protocol/:domain/*", async (c) => {
   const domain = c.req.param("protocol") + "://" + c.req.param("domain")
@@ -17,7 +20,17 @@ app.get("/proxy/:protocol/:domain/*", async (c) => {
 
   console.log("Request to URL: " + url)
 
-  let res = await fetch(url)
+  const cookie = cookieStore.get(domain)
+  let res = await fetch(url, {
+    headers: {
+      ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
+        ? {
+            cookie: (c.req.header("cookie") ?? "") + "; " + cookie.value
+          }
+        : {}),
+      ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
+    }
+  })
   if (!res.ok)
     return c.body(
       await res.arrayBuffer(),
@@ -28,14 +41,19 @@ app.get("/proxy/:protocol/:domain/*", async (c) => {
   let buffer = await res.arrayBuffer()
   const text = new TextDecoder().decode(buffer)
 
-  console.log({ text })
-
   if (text.includes('<script type="text/javascript" src="/aes.js"')) {
     const cookie = `__test=${decrypt(text)}`
 
+    cookieStore.set(domain, { value: cookie, created: Date.now() })
+
     res = await fetch(url, {
       headers: {
-        cookie
+        ...(cookieStore.has(domain)
+          ? {
+              cookie: (c.req.header("cookie") ?? "") + "; " + cookie
+            }
+          : {}),
+        ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
       }
     })
 
