@@ -116,6 +116,26 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     buffer = await res.arrayBuffer()
   }
 
+  if (res.headers.get("content-type")?.includes("html")) {
+    const html = await new TextDecoder().decode(buffer)
+
+    return c.html(
+      html
+        .replace(
+          /action="\//,
+          `action="/proxy/${c.req.param("protocol")}/${c.req.param("domain")}/`
+        )
+        .replace(
+          /href="\//,
+          `href="/proxy/${c.req.param("protocol")}/${c.req.param("domain")}/`
+        )
+        .replace(
+          /src="\//,
+          `src="/proxy/${c.req.param("protocol")}/${c.req.param("domain")}/`
+        )
+    )
+  }
+
   return c.body(buffer, res.status as ContentfulStatusCode, {
     ...Object.fromEntries(res.headers.entries()),
     "Set-Cookie": res.headers.getSetCookie().join("; ")
