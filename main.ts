@@ -27,7 +27,10 @@ app.get("/proxy/:protocol/:domain/*", async (c) => {
 
   let buffer = await res.arrayBuffer()
   const text = new TextDecoder().decode(buffer)
-  if (text.includes('<script type="text/javascript" src="/aes.js" >')) {
+
+  console.log({ text })
+
+  if (text.includes('<script type="text/javascript" src="/aes.js"')) {
     const cookie = `__test=${decrypt(text)}`
 
     res = await fetch(url, {
