@@ -39,6 +39,18 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
       ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
     }
   })
+  console.log({
+    headers_first: {
+      ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
+        ? {
+            cookie: [c.req.header("cookie") ?? "", cookie]
+              .filter(Boolean)
+              .join("; ")
+          }
+        : {}),
+      ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
+    }
+  })
   if (!res.ok)
     return c.body(
       await res.arrayBuffer(),
@@ -74,7 +86,20 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
                 .join("; ")
             }
           : {}),
-        ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
+        ...cleanHeaders(Object.fromEntries(res.headers.entries()))
+      }
+    })
+
+    console.log({
+      headers_last: {
+        ...(cookieStore.has(domain)
+          ? {
+              cookie: [c.req.header("cookie") ?? "", cookie]
+                .filter(Boolean)
+                .join("; ")
+            }
+          : {}),
+        ...cleanHeaders(Object.fromEntries(res.headers.entries()))
       }
     })
 
