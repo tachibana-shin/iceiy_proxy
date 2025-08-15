@@ -1,4 +1,8 @@
-export function cleanHeaders(headers: Record<string, string>, protocol: string, domain: string) {
+export function cleanHeaders(
+  headers: Record<string, string>,
+  protocol: string,
+  domain: string
+) {
   delete headers["host"]
   delete headers["via"]
   delete headers["traceparent"]
@@ -24,6 +28,10 @@ export function cleanHeadersResponse(
   }
 
   // delete headers['set-cookie']
+  headers["set-cookie"] = headers["set-cookie"]
+    .replace(/httponly;/g, "")
+    .replace(/secure;/g, "")
+    .replace(/samesite=lax;/g, "")
 
   return headers
 }
