@@ -29,9 +29,13 @@ function toHex(numbers: number[]) {
 }
 
 export function decrypt(html: string) {
-  const [,,,, a, b, c] = html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
-console.log(
-  html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
-)
+  let [a, b, c] = html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
+
+  a = a.match(/toNumbers\("([a-z0-9]+)"\)/)![1]
+  b = b.match(/toNumbers\("([a-z0-9]+)"\)/)![1]
+  c = c.match(/toNumbers\("([a-z0-9]+)"\)/)![1]
+
+  console.log({ a, b, c })
+
   return toHex(slowAES.decrypt(toNumbers(c), 2, toNumbers(a), toNumbers(b)))
 }
