@@ -6,7 +6,7 @@ export function cleanHeaders(headers: Record<string, string>, protocol: string, 
 
   headers["host"] = domain
   headers["origin"] = `${protocol}://${domain}`
-  headers["referer"] = `${protocol}://${domain}`
+  headers["referer"] = `${protocol}://${domain}/web/login`
 
   return headers
 }
@@ -22,6 +22,8 @@ export function cleanHeadersResponse(
       .toString()
       .replace(`${protocol}://${domain}`, `/proxy/${protocol}/${domain}`)
   }
+
+  // delete headers['set-cookie']
 
   return headers
 }

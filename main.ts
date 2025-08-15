@@ -3,6 +3,7 @@ import { Hono } from "hono"
 import { etag } from "hono/etag"
 import { logger } from "hono/logger"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
+
 import { decrypt } from "./logic/decrypt.ts"
 import { cleanHeaders, cleanHeadersResponse } from "./logic/clean-headers.ts"
 
@@ -80,13 +81,24 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     const text = new TextDecoder().decode(buffer)
     if (text.includes("aes.js")) {
       const cookie = `__test=${decrypt(text)}`
-
-      console.log("detecttttt")
-      console.log(
-        [c.req.header("cookie") ?? "", lastCookie, cookie]
-          .filter(Boolean)
-          .join("; ")
+      cookieStore.set(
+        `${protocol}://${domain}${c.req.raw.headers.get("cookie")}`,
+        { value: cookie, created: Date.now() }
       )
+
+      console.log(url, {
+        method: c.req.method,
+        body,
+        redirect: "manual",
+        headers: {
+          ...cleanHeaders(
+            Object.fromEntries(c.req.raw.headers.entries()),
+            protocol,
+            domain
+          ),
+          cookie: [cookie].filter(Boolean).join("; ")
+        }
+      })
 
       const client = Deno.createHttpClient({
         allowHost: true
@@ -102,25 +114,30 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
             protocol,
             domain
           ),
-          cookie: [cookie].filter(Boolean).join("; ")
+          cookie: [c.req.header("cookie") ?? "", lastCookie, cookie]
+            .filter(Boolean)
+            .join("; ")
         }
       })
 
-      lastCookie = res.headers.getSetCookie().join("; ")
+      // lastCookie = res.headers.getSetCookie().join("; ")
 
       buffer = await res.arrayBuffer()
       if (
         !new TextDecoder().decode(buffer).includes("aes.js") &&
         (!res.ok || res.status === 302)
-      )
+      ) {
+        res.headers.getSetCookie().forEach((item) => {
+          c.header("set-cookie", item, { append: true })
+        })
         return c.body(buffer, res.status as ContentfulStatusCode, {
           ...cleanHeadersResponse(
             Object.fromEntries(res.headers.entries()),
             protocol,
             domain
-          ),
-          "Set-Cookie": res.headers.getSetCookie().join("; ")
+          )
         })
+      }
     } else {
       break
     }
@@ -139,13 +156,15 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
   console.log(res)
 
+  res.headers.getSetCookie().forEach((item) => {
+    c.header("set-cookie", item, { append: true })
+  })
   return c.body(buffer, res.status as ContentfulStatusCode, {
     ...cleanHeadersResponse(
       Object.fromEntries(res.headers.entries()),
       protocol,
       domain
-    ),
-    "Set-Cookie": res.headers.getSetCookie().join("; ")
+    )
   })
 })
 
