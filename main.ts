@@ -12,6 +12,9 @@ app.get("/proxy/:protocol/:domain/*", async (c) => {
   const domain = c.req.param("protocol") + ":" + c.req.param("domain")
   const path = "/" + c.req.path.split("/").slice(4).join("/")
 
+  console.log({domain, path})
+  console.log(c.req.path)
+
   const url = new URL(path, domain)
   url.search = new URL(c.req.url).search
 
