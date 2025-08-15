@@ -1,9 +1,10 @@
+// biome-ignore assist/source/organizeImports: <false>
 import { Hono } from "hono"
 import { etag } from "hono/etag"
 import { logger } from "hono/logger"
-import { ContentfulStatusCode } from "hono/utils/http-status"
+import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { decrypt } from "./logic/decrypt.ts"
-import { cleanHeaders } from "./logic/clean-headers.ts"
+import { cleanHeaders, cleanHeadersResponse } from "./logic/clean-headers.ts"
 
 const app = new Hono()
 
@@ -12,22 +13,37 @@ app.use(etag(), logger())
 const cookieStore = new Map<string, { value: string; created: number }>()
 
 app.all("/proxy/:protocol/:domain/*", async (c) => {
-  const domain = c.req.param("protocol") + "://" + c.req.param("domain")
-  const path = "/" + c.req.path.split("/").slice(4).join("/")
+  const protocol = c.req.param("protocol")
+  const domain = c.req.param("domain")
 
-  const url = new URL(path, domain)
+  const path = `/${c.req.path.split("/").slice(4).join("/")}`
+
+  const url = new URL(path, `${protocol}://${domain}`)
   url.search = new URL(c.req.url).search
 
-  console.log("Request to URL: " + url)
+  console.log(`Request to URL: ${url}`)
+  console.log(`Request method: ${c.req.method}`)
 
-  const cookie = cookieStore.get(domain)
+  const body = [
+    "GET",
+    "HEAD",
+    "DELETE",
+    "TRACE",
+    "OPTIONS",
+    "CONNECT"
+  ].includes(c.req.method)
+    ? null
+    : await c.req.arrayBuffer()
+
+  const cookie = cookieStore.get(`${protocol}://${domain}`)
+  const client = Deno.createHttpClient({
+    allowHost: true
+  })
   let res = await fetch(url, {
     method: c.req.method,
-    body: ["GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"].includes(
-      c.req.method
-    )
-      ? null
-      : await c.req.arrayBuffer(),
+    client,
+    body,
+    redirect: "manual",
     headers: {
       ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
         ? {
@@ -36,26 +52,23 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
               .join("; ")
           }
         : {}),
-      ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
+      ...cleanHeaders(
+        Object.fromEntries(c.req.raw.headers.entries()),
+        protocol,
+        domain
+      )
     }
   })
-  console.log({
-    headers_first: {
-      ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
-        ? {
-            cookie: [c.req.header("cookie") ?? "", cookie]
-              .filter(Boolean)
-              .join("; ")
-          }
-        : {}),
-      ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
-    }
-  })
-  if (!res.ok)
+
+  if (!res.ok || res.status === 302)
     return c.body(
       await res.arrayBuffer(),
       res.status as ContentfulStatusCode,
-      Object.fromEntries(res.headers.entries())
+      cleanHeadersResponse(
+        Object.fromEntries(res.headers.entries()),
+        protocol,
+        domain
+      )
     )
 
   let buffer = await res.arrayBuffer()
@@ -66,18 +79,14 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
     cookieStore.set(domain, { value: cookie, created: Date.now() })
 
-    console.log({
-      cookie_pass: [c.req.header("cookie") ?? "", cookie]
-        .filter(Boolean)
-        .join("; ")
+    const client = Deno.createHttpClient({
+      allowHost: true
     })
     res = await fetch(url, {
       method: c.req.method,
-      body: ["GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"].includes(
-        c.req.method
-      )
-        ? null
-        : await c.req.arrayBuffer(),
+      client,
+      body,
+      redirect: "manual",
       headers: {
         ...(cookieStore.has(domain)
           ? {
@@ -86,29 +95,24 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
                 .join("; ")
             }
           : {}),
-        ...cleanHeaders(Object.fromEntries(res.headers.entries()))
+        ...cleanHeaders(
+          Object.fromEntries(c.req.raw.headers.entries()),
+          protocol,
+          domain
+        )
       }
     })
 
-    console.log({
-      headers_last: {
-        ...(cookieStore.has(domain)
-          ? {
-              cookie: [c.req.header("cookie") ?? "", cookie]
-                .filter(Boolean)
-                .join("; ")
-            }
-          : {}),
-        ...cleanHeaders(Object.fromEntries(res.headers.entries()))
-      }
-    })
-
-    if (!res.ok)
+    if (!res.ok || res.status === 302)
       return c.body(
         await res.arrayBuffer(),
         res.status as ContentfulStatusCode,
         {
-          ...Object.fromEntries(res.headers.entries()),
+          ...cleanHeadersResponse(
+            Object.fromEntries(res.headers.entries()),
+            protocol,
+            domain
+          ),
           "Set-Cookie": res.headers.getSetCookie().join("; ")
         }
       )
@@ -121,23 +125,20 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
     return c.html(
       html
-        .replace(
-          /action="\//,
-          `action="/proxy/${c.req.param("protocol")}/${c.req.param("domain")}/`
-        )
-        .replace(
-          /href="\//,
-          `href="/proxy/${c.req.param("protocol")}/${c.req.param("domain")}/`
-        )
-        .replace(
-          /src="\//,
-          `src="/proxy/${c.req.param("protocol")}/${c.req.param("domain")}/`
-        )
+        .replace(/action="\//, `action="/proxy/${protocol}/${domain}/`)
+        .replace(/href="\//, `href="/proxy/${protocol}/${domain}/`)
+        .replace(/src="\//, `src="/proxy/${protocol}/${domain}/`)
     )
   }
 
+  console.log(res)
+
   return c.body(buffer, res.status as ContentfulStatusCode, {
-    ...Object.fromEntries(res.headers.entries()),
+    ...cleanHeadersResponse(
+      Object.fromEntries(res.headers.entries()),
+      protocol,
+      domain
+    ),
     "Set-Cookie": res.headers.getSetCookie().join("; ")
   })
 })
