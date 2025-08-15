@@ -31,7 +31,9 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     headers: {
       ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
         ? {
-            cookie: (c.req.header("cookie") ?? "") + "; " + cookie.value
+            cookie: [c.req.header("cookie") ?? "", cookie]
+              .filter(Boolean)
+              .join("; ")
           }
         : {}),
       ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
@@ -52,7 +54,7 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
     cookieStore.set(domain, { value: cookie, created: Date.now() })
 
-    console.log({ cookie})
+    console.log({ cookie })
 
     res = await fetch(url, {
       method: c.req.method,
@@ -64,7 +66,9 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
       headers: {
         ...(cookieStore.has(domain)
           ? {
-              cookie: (c.req.header("cookie") ?? "") + "; " + cookie
+              cookie: [c.req.header("cookie") ?? "", cookie]
+                .filter(Boolean)
+                .join("; ")
             }
           : {}),
         ...cleanHeaders(Object.fromEntries(c.req.raw.headers.entries()))
