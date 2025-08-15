@@ -29,7 +29,7 @@ function toHex(numbers: number[]) {
 }
 
 export function decrypt(html: string) {
-  const [, a, b, c] = html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
+  const [,,,, a, b, c] = html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
 console.log(
   html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
 )
