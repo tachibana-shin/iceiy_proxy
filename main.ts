@@ -27,7 +27,7 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
       c.req.method
     )
       ? null
-      : await c.req.formData(),
+      : await c.req.raw.body,
     headers: {
       ...(cookie && cookie.created + 21600 * 1e3 > Date.now()
         ? {
@@ -58,7 +58,7 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
         c.req.method
       )
         ? null
-        : await c.req.formData(),
+        : await c.req.raw.body,
       headers: {
         ...(cookieStore.has(domain)
           ? {
