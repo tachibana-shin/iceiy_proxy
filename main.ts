@@ -78,10 +78,9 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
     i = 0
   while (i++ < 6) {
     const text = new TextDecoder().decode(buffer)
-
-    const cookie = `__test=${decrypt(text)}`
-
     if (text.includes("aes.js")) {
+      const cookie = `__test=${decrypt(text)}`
+
       console.log("detecttttt")
       console.log(
         [c.req.header("cookie") ?? "", lastCookie, cookie]
