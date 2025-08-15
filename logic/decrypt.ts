@@ -30,6 +30,8 @@ function toHex(numbers: number[]) {
 
 export function decrypt(html: string) {
   const [, a, b, c] = html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
-
+console.log(
+  html.match(/toNumbers\("([a-z0-9]+)"\)/g)!
+)
   return toHex(slowAES.decrypt(toNumbers(c), 2, toNumbers(a), toNumbers(b)))
 }
