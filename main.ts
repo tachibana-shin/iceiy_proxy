@@ -54,8 +54,6 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
 
     cookieStore.set(domain, { value: cookie, created: Date.now() })
 
-    console.log({ cookie, res_cookie: res.headers.getSetCookie() })
-
     res = await fetch(url, {
       method: c.req.method,
       body: ["GET", "HEAD", "DELETE", "TRACE", "OPTIONS", "CONNECT"].includes(
@@ -75,22 +73,25 @@ app.all("/proxy/:protocol/:domain/*", async (c) => {
       }
     })
 
-    console.log({ res_cookie: res.headers.getSetCookie() })
+    console.log({ res_cookie: Object.fromEntries(res.headers.entries()) })
     if (!res.ok)
       return c.body(
         await res.arrayBuffer(),
         res.status as ContentfulStatusCode,
-        Object.fromEntries(res.headers.entries())
+        {
+          ...Object.fromEntries(res.headers.entries()),
+          "Set-Cookie": res.headers.getSetCookie().join("; ")
+        }
       )
 
     buffer = await res.arrayBuffer()
   }
 
-  return c.body(
-    buffer,
-    res.status as ContentfulStatusCode,
-    Object.fromEntries(res.headers.entries())
-  )
+  console.log({ res_cookie: Object.fromEntries(res.headers.entries()) })
+  return c.body(buffer, res.status as ContentfulStatusCode, {
+    ...Object.fromEntries(res.headers.entries()),
+    "Set-Cookie": res.headers.getSetCookie().join("; ")
+  })
 })
 
 Deno.serve(app.fetch)
